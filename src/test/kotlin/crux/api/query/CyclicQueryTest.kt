@@ -4,7 +4,9 @@ import com.natpryce.hamkrest.assertion.assertThat
 import com.natpryce.hamkrest.equalTo
 import crux.api.CruxDocument
 import crux.api.CruxK
-import crux.api.query.conversion.q
+import crux.api.ICruxDatasource
+import crux.api.query.context.QueryContext
+import crux.api.query.conversion.toEdn
 import crux.api.tx.submitTx
 import crux.api.underware.kw
 import crux.api.underware.sym
@@ -43,7 +45,6 @@ class CyclicQueryTest {
         private val next = "next".kw
 
         private val pointsTo = "pointsTo".sym
-        private val points2 = "points2".sym
     }
 
     private val db = CruxK.startNode().apply {
@@ -55,10 +56,15 @@ class CyclicQueryTest {
         }
     }.db()
 
+    fun ICruxDatasource.qd(vararg params: Any, block: QueryContext.() -> Unit): MutableCollection<MutableList<*>> =
+        QueryContext.build(block).toEdn()
+            .also(::println)
+            .let{query(it, *params)}
+
     @Test
     fun `can find all nodes in cycle`() {
         assertThat(
-            db.q {
+            db.qd {
                 find {
                     + node
                 }
@@ -86,4 +92,34 @@ class CyclicQueryTest {
             )
         )
     }
+
+    /*
+    EDN from debug:
+    {
+        :find [node]
+        :where [
+            [start :crux.db/id "a-1"]
+            [end :crux.db/id "a-1"]
+            (pointsTo start node)
+            (pointsTo node end)
+        ]
+        :rules [
+            [
+                (pointsTo start end)
+                [start :next end]
+            ]
+            [
+                (pointsTo start end)
+                [start :next intermediate]
+                (pointsTo intermediate end)
+            ]
+        ]
+    }
+     */
+
+    /*
+        Assertion failure:
+            expected: a value that is equal to {"a-1", "a-2", "a-3", "a-4"}
+            but was: {"b-5", "a-2", "b-3", "a-1", "a-3", "a-4", "b-4", "b-2", "b-1"}
+     */
 }
