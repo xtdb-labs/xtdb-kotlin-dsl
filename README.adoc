@@ -1,0 +1,3 @@
+= crux-kotlin-dsl
+
+This now lives in the https://github.com/xtdb/xtdb/tree/main/labs/kotlin-dsl[XTDB repo].
